@@ -246,7 +246,7 @@ impl ChainStateDB {
         }
     }
 
-    fn new_state_tree<K: RawKey>(&self, root_hash: HashValue) -> StateTree<K> {
+    fn new_state_tree<K: RawKey + std::fmt::Display>(&self, root_hash: HashValue) -> StateTree<K> {
         StateTree::new(self.store.clone(), Some(root_hash))
     }
 

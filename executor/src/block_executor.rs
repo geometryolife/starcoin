@@ -65,10 +65,14 @@ pub fn block_execute(
                     .map_err(BlockExecutorError::BlockChainStateErr)?;
                 //every transaction's state tree root and tree nodes should save to storage
                 //TODO merge database flush.
-                chain_state
-                    .flush()
+               /*
+                 chain_state
+                     .flush()
                     .map_err(BlockExecutorError::BlockChainStateErr)?;
 
+                  */
+
+                debug!("fuck txn root {}", txn_state_root);
                 executed_data.txn_infos.push(TransactionInfo::new(
                     txn_hash,
                     txn_state_root,
@@ -80,7 +84,9 @@ pub fn block_execute(
             }
         };
     }
-
+    chain_state
+        .flush()
+        .map_err(BlockExecutorError::BlockChainStateErr)?;
     executed_data.state_root = chain_state.state_root();
     Ok(executed_data)
 }

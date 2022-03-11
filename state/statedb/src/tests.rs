@@ -1,5 +1,10 @@
 use super::*;
+use starcoin_config::RocksdbConfig;
 use starcoin_state_tree::mock::MockStateNodeStore;
+use starcoin_storage::cache_storage::CacheStorage;
+use starcoin_storage::db_storage::DBStorage;
+use starcoin_storage::storage::StorageInstance;
+use starcoin_storage::Storage;
 use starcoin_types::write_set::{WriteOp, WriteSet, WriteSetMut};
 use starcoin_vm_types::account_config::AccountResource;
 use starcoin_vm_types::move_resource::MoveResource;
@@ -13,6 +18,20 @@ fn to_write_set(access_path: AccessPath, value: Vec<u8>) -> WriteSet {
     WriteSetMut::new(vec![(access_path, WriteOp::Value(value))])
         .freeze()
         .expect("freeze write_set must success.")
+}
+
+fn to_write_set2(
+    access_path1: AccessPath,
+    value1: Vec<u8>,
+    access_path2: AccessPath,
+    value2: Vec<u8>,
+) -> WriteSet {
+    WriteSetMut::new(vec![
+        (access_path1, WriteOp::Value(value1)),
+        (access_path2, WriteOp::Value(value2)),
+    ])
+    .freeze()
+    .expect("freeze write_set must success.")
 }
 
 #[test]

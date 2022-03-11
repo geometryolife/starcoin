@@ -20,3 +20,5 @@ starcoin-state-tree = {path = "../state-tree"}
 bcs-ext = { package="bcs-ext", path = "../../commons/bcs_ext" }
 serde = { version = "1.0.130" }
 forkable-jellyfish-merkle = {path = "../../commons/forkable-jellyfish-merkle"}
+starcoin-config = {path = "../../config"}
+starcoin-storage = {path = "../../storage"}

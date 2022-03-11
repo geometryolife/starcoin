@@ -25,7 +25,8 @@ fn test_transaction_info_and_proof() -> Result<()> {
 
     let mut rng = rand::thread_rng();
 
-    let block_count: u64 = rng.gen_range(2..10);
+    let block_count: u64 = rng.gen_range(1..2);
+    debug!("block_count {}", block_count);
     let mut seq_number = 0;
     let mut all_txns = vec![];
     let mut all_address = HashMap::<HashValue, AccountAddress>::new();
@@ -38,7 +39,8 @@ fn test_transaction_info_and_proof() -> Result<()> {
     ));
 
     (0..block_count).for_each(|_block_idx| {
-        let txn_count: u64 = rng.gen_range(1..10);
+        let txn_count: u64 = rng.gen_range(1..2);
+        debug!("txn_count {}", txn_count);
         let txns: Vec<SignedUserTransaction> = (0..txn_count)
             .map(|_txn_idx| {
                 let account_address = AccountAddress::random();
@@ -78,7 +80,8 @@ fn test_transaction_info_and_proof() -> Result<()> {
         current_header = block.header().clone();
     });
 
-    let txn_index = rng.gen_range(0..all_txns.len());
+    // let txn_index = rng.gen_range(0..all_txns.len());
+    let txn_index = 1usize;
     debug!("all txns len: {}, txn index:{}", all_txns.len(), txn_index);
 
     for txn_global_index in 0..all_txns.len() {

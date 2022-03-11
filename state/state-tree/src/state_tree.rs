@@ -85,7 +85,7 @@ pub struct StateTree<K: RawKey> {
 
 impl<K> Clone for StateTree<K>
 where
-    K: RawKey,
+    K: RawKey + std::fmt::Display,
 {
     fn clone(&self) -> Self {
         StateTree::new(self.storage.clone(), Some(*self.storage_root_hash.read()))
@@ -94,7 +94,7 @@ where
 
 impl<K> StateTree<K>
 where
-    K: RawKey,
+    K: RawKey + std::fmt::Display,
 {
     /// Construct a new state_db from provided `state_root_hash` with underline `state_storage`
     pub fn new(state_storage: Arc<dyn StateNodeStore>, state_root_hash: Option<HashValue>) -> Self {
@@ -168,11 +168,16 @@ where
     /// NOTICE: this method will not flush the changes into disk.
     /// It'just commit the changes into local state-tree, and cache it there.
     pub fn commit(&self) -> Result<HashValue> {
+        debug!("fuck ysg begin");
         let mut guard = self.updates.write();
         let updates = guard
             .iter()
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect::<Vec<_>>();
+        for (k, v) in updates.iter() {
+            debug!("fuck ysg k {} v {:?}", k, v);
+        }
+        debug!("fuck ysg end");
         let new_root_hash = self.updates(updates)?;
         guard.clear();
         Ok(new_root_hash)
@@ -202,6 +207,15 @@ where
         for (nk, n) in change_sets.node_batch.into_iter() {
             node_map.insert(nk, n.try_into()?);
         }
+
+        /*
+        for (nk, n) in change_sets.node_batch.iter() {
+            if let Some(old) = node_map.insert(nk.clone(), n.clone().try_into()?) {
+                println!("node_map old {} {:?} {:?}", nk.clone(), n.clone().try_into()?, old);
+            }
+        }
+         */
+
         self.storage.write_nodes(node_map)?;
         // and then advance the storage root hash
         *self.storage_root_hash.write() = root_hash;
