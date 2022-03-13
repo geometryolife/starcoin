@@ -41,8 +41,8 @@ pub fn stacktrace(err: anyhow::Error) {
     }
 }
 
-const LOG_PATTERN_WITH_LINE: &str = "{d} {l} {M}::{f}::{L} - {m}{n}";
-const LOG_PATTERN_DEFAULT: &str = "{d} {l} - {m}{n}";
+const LOG_PATTERN_WITH_LINE: &str = "{l} {M}::{f}::{L} - {m}{n}";
+const LOG_PATTERN_DEFAULT: &str = "{l} - {m}{n}";
 
 #[derive(
     Clone, Debug, Hash, PartialOrd, PartialEq, Ord, Eq, Serialize, Deserialize, JsonSchema,

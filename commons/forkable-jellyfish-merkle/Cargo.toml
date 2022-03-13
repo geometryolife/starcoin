@@ -18,9 +18,11 @@ proptest-derive = { version = "0.3.0", optional = true }
 serde = { version = "1.0.130", features = ["derive"] }
 serde_bytes = {version = "0.11"}
 starcoin-crypto = { git = "https://github.com/starcoinorg/starcoin-crypto", rev = "d871dfb4216f034ee334a575926c101574d9d6dc"}
+starcoin-logger = {path = "../../commons/logger"}
 thiserror = "1.0"
 hex= "0.4.3"
 bcs-ext = { path = "../../commons/bcs_ext", package = "bcs-ext" }
+backtrace = "0.3.56"
 
 [dev-dependencies]
 rand = "0.8.5"

@@ -31,6 +31,8 @@ proptest-derive = { version = "0.3.0", default-features = false, optional = true
 sp-utils = {path = "../commons/utils"}
 rand = "0.8.5"
 rand_core = { version = "0.6.3", default-features = false }
+serde = "~1"
+serde_json = {version="~1", features=["arbitrary_precision"]}
 
 [dev-dependencies]
 stdlib = { path = "../vm/stdlib" }

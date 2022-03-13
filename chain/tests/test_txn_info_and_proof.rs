@@ -2,7 +2,7 @@ use anyhow::{format_err, Result};
 use consensus::Consensus;
 use crypto::HashValue;
 use logger::prelude::debug;
-use rand::Rng;
+//use rand::Rng;
 use starcoin_account_api::AccountInfo;
 use starcoin_accumulator::Accumulator;
 use starcoin_chain_api::{ChainReader, ChainWriter};
@@ -21,11 +21,15 @@ fn test_transaction_info_and_proof() -> Result<()> {
     let config = Arc::new(NodeConfig::random_for_test());
     let mut block_chain = test_helper::gen_blockchain_for_test(config.net())?;
     let mut current_header = block_chain.current_header();
-    let miner_account = AccountInfo::random();
 
-    let mut rng = rand::thread_rng();
+    let miner_account_str = "{\"address\":\"0xe212f622b8572ded44b13c454902a3e7\",\"is_default\":false,\"is_readonly\":false,\"public_key\":\"0x319344fe35939beaa9b9e862cbd248467d873b3caec69e25f11876b32b18e279\",\"receipt_identifier\":\"stc1pugf0vg4c2uk7639383z5jq4ruuzamrrm\"}";
+    let miner_account: AccountInfo = serde_json::from_str(miner_account_str)?;
 
-    let block_count: u64 = rng.gen_range(1..2);
+    debug!("miner_account_str {}", miner_account_str);
+
+    //let mut rng = rand::thread_rng();
+
+    let block_count: u64 = 1;
     debug!("block_count {}", block_count);
     let mut seq_number = 0;
     let mut all_txns = vec![];
@@ -39,12 +43,12 @@ fn test_transaction_info_and_proof() -> Result<()> {
     ));
 
     (0..block_count).for_each(|_block_idx| {
-        let txn_count: u64 = rng.gen_range(1..2);
+        let txn_count: u64 = 1;
         debug!("txn_count {}", txn_count);
         let txns: Vec<SignedUserTransaction> = (0..txn_count)
             .map(|_txn_idx| {
-                let account_address = AccountAddress::random();
-
+                let account_address =
+                    AccountAddress::from_hex_literal("0xc41268b46c473f728b2ed306bcd689f9").unwrap();
                 let txn = peer_to_peer_txn_sent_as_association(
                     account_address,
                     seq_number,
@@ -81,7 +85,7 @@ fn test_transaction_info_and_proof() -> Result<()> {
     });
 
     // let txn_index = rng.gen_range(0..all_txns.len());
-    let txn_index = 1usize;
+    let txn_index = 2usize;
     debug!("all txns len: {}, txn index:{}", all_txns.len(), txn_index);
 
     for txn_global_index in 0..all_txns.len() {

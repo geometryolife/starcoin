@@ -6,6 +6,7 @@ use forkable_jellyfish_merkle::proof::SparseMerkleProof;
 use forkable_jellyfish_merkle::{
     JellyfishMerkleTree, RawKey, StaleNodeIndex, TreeReader, TreeUpdateBatch,
 };
+use logger::prelude::debug;
 use parking_lot::{Mutex, RwLock};
 use starcoin_crypto::hash::*;
 use starcoin_state_store_api::*;
@@ -19,12 +20,12 @@ use std::collections::BTreeMap;
 use std::convert::TryInto;
 use std::ops::DerefMut;
 use std::sync::Arc;
-use logger::prelude::debug;
 
 #[derive(Clone)]
 pub struct StateCache<K: RawKey> {
     root_hash: HashValue,
     change_set: TreeUpdateBatch<K>,
+    change_sets_lists: Vec<(HashValue, TreeUpdateBatch<K>)>,
 }
 
 impl<K> StateCache<K>
@@ -35,16 +36,18 @@ where
         Self {
             root_hash: initial_root,
             change_set: TreeUpdateBatch::default(),
+            change_sets_lists: Vec::new(),
         }
     }
 
     fn reset(&mut self, root_hash: HashValue) {
         self.root_hash = root_hash;
         self.change_set = TreeUpdateBatch::default();
+        self.change_sets_lists.clear();
     }
 
     fn add_changeset(&mut self, root_hash: HashValue, cs: TreeUpdateBatch<K>) {
-        let cur_change_set = &mut self.change_set;
+        let mut cur_change_set = TreeUpdateBatch::default();
         let mut cs_num_stale_leaves = cs.num_stale_leaves;
         for stale_node in cs.stale_node_index_batch.iter() {
             match cur_change_set.node_batch.remove(&stale_node.node_key) {
@@ -72,7 +75,10 @@ where
             }
         }
 
+        self.change_sets_lists
+            .push((root_hash, cur_change_set.clone()));
         self.root_hash = root_hash;
+        self.change_set = cur_change_set;
     }
 }
 
@@ -120,8 +126,8 @@ where
     /// and use it as the `key_hash`.
     /// this will not compute new root hash,
     /// Use `commit` to recompute the root hash.
-    pub fn put(&self, key: K, value: Vec<u8>) {
-        self.updates.write().insert(key, Some(value.into()));
+    pub fn put(&self, key: K, value: Vec<u8>) -> Option<Option<Blob>> {
+        self.updates.write().insert(key, Some(value.into()))
     }
 
     /// Remove key_hash's data.
@@ -175,8 +181,8 @@ where
             .iter()
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect::<Vec<_>>();
-        for (k, v) in updates.iter() {
-            debug!("fuck ysg k {} v {:?}", k, v);
+        for (_k, _v) in updates.iter() {
+            //   debug!("fuck ysg k {} v {:?}", k, v);
         }
         debug!("fuck ysg end");
         let new_root_hash = self.updates(updates)?;
@@ -202,21 +208,24 @@ where
 
     /// commit the state change into underline storage.
     pub fn flush(&self) -> Result<()> {
-        let (root_hash, change_sets) = self.change_sets();
+        let change_sets_list = self.change_sets_list();
 
+        debug!("change_sets_list len {}", change_sets_list.len());
+        let mut root_hash = HashValue::default();
         let mut node_map = BTreeMap::new();
-        for (nk, n) in change_sets.node_batch.into_iter() {
-            node_map.insert(nk, n.try_into()?);
-        }
+        for (hash, change_sets) in change_sets_list.into_iter() {
+            /*
+            for (nk, n) in change_sets.node_batch.iter() {
+                if let Some(old) = node_map.insert(nk.clone(), n.clone().try_into()?) {
+                    println!("node_map old {} {:?} {:?}", nk.clone(), n.clone().try_into()?, old);
+                }
+            } */
 
-        /*
-        for (nk, n) in change_sets.node_batch.iter() {
-            if let Some(old) = node_map.insert(nk.clone(), n.clone().try_into()?) {
-                println!("node_map old {} {:?} {:?}", nk.clone(), n.clone().try_into()?, old);
+            for (nk, n) in change_sets.node_batch.into_iter() {
+                node_map.insert(nk, n.try_into()?);
             }
+            root_hash = hash;
         }
-         */
-
         self.storage.write_nodes(node_map)?;
         // and then advance the storage root hash
         *self.storage_root_hash.write() = root_hash;
@@ -311,10 +320,11 @@ where
     // }
 
     /// get all changes so far based on initial root_hash.
-    pub fn change_sets(&self) -> (HashValue, TreeUpdateBatch<K>) {
+    pub fn change_sets_list(&self) -> Vec<(HashValue, TreeUpdateBatch<K>)> {
         let cache_guard = self.cache.lock();
-        (cache_guard.root_hash, cache_guard.change_set.clone())
+        cache_guard.change_sets_lists.clone()
     }
+
     // TODO: to keep atomic with other commit.
     // TODO: think about the WriteBatch trait position.
     // pub fn save<T>(&self, batch: &mut T) -> Result<()>

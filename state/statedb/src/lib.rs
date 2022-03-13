@@ -10,6 +10,7 @@ use lru::LruCache;
 use parking_lot::{Mutex, RwLock};
 use starcoin_crypto::HashValue;
 use starcoin_logger::prelude::*;
+use starcoin_resource_viewer::MoveValueAnnotator;
 pub use starcoin_state_api::{
     ChainState, ChainStateReader, ChainStateWriter, StateProof, StateWithProof,
 };
@@ -120,13 +121,24 @@ impl AccountStateObject {
         }
     }
 
-    pub fn set(&self, data_path: DataPath, value: Vec<u8>) {
+    pub fn set(
+        &self,
+        statedb: &ChainStateDB,
+        account_address: &AccountAddress,
+        data_path: DataPath,
+        value: Vec<u8>,
+    ) {
         match data_path {
             DataPath::Code(module_name) => {
                 if self.code_tree.lock().is_none() {
                     *self.code_tree.lock() =
                         Some(StateTree::<ModuleName>::new(self.store.clone(), None));
                 }
+                debug!(
+                    "address {} code module_name {}",
+                    account_address,
+                    module_name.clone()
+                );
                 self.code_tree
                     .lock()
                     .as_ref()
@@ -134,7 +146,24 @@ impl AccountStateObject {
                     .put(module_name, value);
             }
             DataPath::Resource(struct_tag) => {
-                self.resource_tree.lock().put(struct_tag, value);
+                let annotator = MoveValueAnnotator::new(statedb);
+                let struct_data =
+                    annotator.view_struct(struct_tag.clone(), value.clone().as_slice());
+                if struct_data.is_ok() {
+                    debug!(
+                        "address {} resource struct_tag {} {}",
+                        account_address,
+                        struct_tag.clone(),
+                        struct_data.unwrap()
+                    );
+                }
+                if let Some(Some(_)) = self
+                    .resource_tree
+                    .lock()
+                    .put(struct_tag.clone(), value.clone())
+                {
+                    debug!("resource_tree prev struct_tag {} {:?}", struct_tag, value);
+                }
             }
         }
     }
@@ -507,16 +536,17 @@ impl ChainStateWriter for ChainStateDB {
     }
 
     fn apply_write_set(&self, write_set: WriteSet) -> Result<()> {
+        debug!("write_set len {}", write_set.len());
         let mut locks = self.updates.write();
         for (access_path, write_op) in write_set {
             //update self updates record
-            locks.insert(access_path.address);
+            locks.insert(access_path.address); // TODO OPTIMIZE
             let (account_address, data_path) = access_path.into_inner();
             match write_op {
                 WriteOp::Value(value) => {
                     let account_state_object =
                         self.get_account_state_object(&account_address, true)?;
-                    account_state_object.set(data_path, value);
+                    account_state_object.set(&self, &account_address, data_path, value);
                 }
                 WriteOp::Deletion => {
                     let account_state_object =
@@ -530,10 +560,17 @@ impl ChainStateWriter for ChainStateDB {
     /// Commit
     fn commit(&self) -> Result<HashValue> {
         // cache commit
+        debug!(
+            "statedb updates len {} {:?}",
+            self.updates.read().len(),
+            self.updates.read()
+        );
         for address in self.updates.read().iter() {
             let account_state_object = self.get_account_state_object(address, false)?;
             let state = account_state_object.commit()?;
-            self.state_tree.put(*address, state.try_into()?);
+            if let Some(Some(_)) = self.state_tree.put(*address, state.try_into()?) {
+                debug!("statedb prev address {}", *address);
+            }
         }
         self.state_tree.commit()
     }

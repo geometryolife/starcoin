@@ -135,6 +135,7 @@ fn test_state_db_dump_iter() -> Result<()> {
     chain_state_db.commit()?;
     chain_state_db.flush()?;
 
+
     let global_state1 = chain_state_db.dump()?;
     assert_eq!(
         global_state1.state_sets().len(),

@@ -22,3 +22,4 @@ serde = { version = "1.0.130" }
 forkable-jellyfish-merkle = {path = "../../commons/forkable-jellyfish-merkle"}
 starcoin-config = {path = "../../config"}
 starcoin-storage = {path = "../../storage"}
+starcoin-resource-viewer = {path = "../../vm/resource-viewer"}
