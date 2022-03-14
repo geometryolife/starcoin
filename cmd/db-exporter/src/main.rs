@@ -1139,7 +1139,7 @@ pub fn export_snapshot(
 
     // XXX FIXME BUG remove ""
     for (path, hash) in mainfest_list.iter() {
-        writeln!(file, "{:?} {}", path.to_str().unwrap(), hash)?;
+        writeln!(file, "{} {}", path.display(), hash)?;
     }
     file.flush()?;
 
