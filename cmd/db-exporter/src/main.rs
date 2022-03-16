@@ -4,6 +4,7 @@
 use anyhow::{bail, format_err, Result};
 use bcs_ext::Sample;
 use csv::Writer;
+use forkable_jellyfish_merkle::node_type::Node;
 use indicatif::{ProgressBar, ProgressStyle};
 use starcoin_account_api::AccountInfo;
 use starcoin_accumulator::Accumulator;
@@ -17,6 +18,7 @@ use starcoin_crypto::HashValue;
 use starcoin_executor::account::{create_account_txn_sent_as_association, peer_to_peer_txn};
 use starcoin_executor::DEFAULT_EXPIRATION_TIME;
 use starcoin_genesis::Genesis;
+use starcoin_state_store_api::StateNodeStore;
 use starcoin_statedb::ChainStateDB;
 use starcoin_statedb::ChainStateReader;
 use starcoin_storage::block::FailedBlock;
@@ -1050,7 +1052,7 @@ pub fn export_snapshot(
         if use_json {
             writeln!(file, "{}", serde_json::to_string(&block_info)?)?;
         } else {
-           // writeln!(file, "{:?}", bcs_ext::to_bytes(&block_info)?)?;
+            // writeln!(file, "{:?}", bcs_ext::to_bytes(&block_info)?)?;
             file.write_all(&bcs_ext::to_bytes(&block_info)?)?;
         }
         bar.set_message(format!("save block_info {}", i).as_str());
@@ -1075,8 +1077,8 @@ pub fn export_snapshot(
         if use_json {
             writeln!(file, "{}", serde_json::to_string(&block)?)?;
         } else {
-          //  writeln!(file, "{:?}", bcs_ext::to_bytes(&block)?)?;
-            file.write_all( &bcs_ext::to_bytes(&block)?)?;
+            //  writeln!(file, "{:?}", bcs_ext::to_bytes(&block)?)?;
+            file.write_all(&bcs_ext::to_bytes(&block)?)?;
         }
         bar.set_message(format!("save block {}", block.header().number()).as_str());
         bar.inc(1);
@@ -1152,48 +1154,93 @@ pub fn export_snapshot(
 
     // get all transaction (todo)
 
-    // get state
     let start_num = cur_num / net.genesis_config().consensus_config.epoch_block_count
         * net.genesis_config().consensus_config.epoch_block_count;
-    for i in start_num..=cur_num {
+
+    // get start_num state_root snapshot
+    let block = chain
+        .get_block_by_number(start_num)?
+        .ok_or_else(|| format_err!("get block {} error", start_num))?;
+    let statedb = ChainStateDB::new(storage.clone(), Some(block.header().state_root()));
+    let filename = format!("snapshot_{}_{}.csv", STATE_NODE_PREFIX_NAME, start_num);
+    mainfest_list.push((output.join(filename.clone()), block.header().state_root()));
+    let mut file = File::create(output.join(filename))?;
+    let global_states = statedb.dump()?;
+    let bar = ProgressBar::new(global_states.len() as u64);
+    bar.set_style(
+        ProgressStyle::default_bar()
+            .template("[{elapsed_precise}] {bar:100.cyan/blue} {percent}% {msg}"),
+    );
+    let mut index = 0;
+    for (account_address, account_state_set) in global_states.into_inner() {
+        if use_json {
+            writeln!(
+                file,
+                "{} {}",
+                serde_json::to_string(&account_address)?,
+                serde_json::to_string(&account_state_set)?
+            )?;
+        } else {
+            /*
+            writeln!(
+                file,
+                "{:?} {:?}",
+                bcs_ext::to_bytes(&account_address)?,
+                bcs_ext::to_bytes(&account_state_set)?
+            )?; */
+            file.write_all(&bcs_ext::to_bytes(&account_address)?)?;
+            file.write_all(&bcs_ext::to_bytes(&account_state_set)?)?;
+        }
+        bar.set_message(format!("write state {}", index).as_str());
+        index += 1;
+        bar.inc(1);
+    }
+    file.flush()?;
+    bar.finish();
+
+    let mut states_keys_prev = statedb.dump_keys()?;
+    // get state (start_num, cur_num] state_root inc (AccountAddress, AccountStateSet)
+    for i in (start_num + 1) as BlockNumber..=cur_num {
         let block = chain
             .get_block_by_number(i)?
             .ok_or_else(|| format_err!("get block {} error", i))?;
         let statedb = ChainStateDB::new(storage.clone(), Some(block.header().state_root()));
-        let filename = format!("snapshot_{}_{}.csv", STATE_NODE_PREFIX_NAME, i);
+        let filename = format!("snapshot_inc_{}_{}.csv", STATE_NODE_PREFIX_NAME, i);
         mainfest_list.push((output.join(filename.clone()), block.header().state_root()));
         let mut file = File::create(output.join(filename))?;
-        let global_states = statedb.dump()?;
-        let bar = ProgressBar::new(global_states.len() as u64);
-        bar.set_style(
-            ProgressStyle::default_bar()
-                .template("[{elapsed_precise}] {bar:100.cyan/blue} {percent}% {msg}"),
-        );
-        for (account_address, account_state_set) in global_states.into_inner() {
-            if use_json {
-                writeln!(
-                    file,
-                    "{} {}",
-                    serde_json::to_string(&account_address)?,
-                    serde_json::to_string(&account_state_set)?
-                )?;
-            } else {
-                /*
-                writeln!(
-                    file,
-                    "{:?} {:?}",
-                    bcs_ext::to_bytes(&account_address)?,
-                    bcs_ext::to_bytes(&account_state_set)?
-                )?; */
-
-                file.write_all(&bcs_ext::to_bytes(&account_address)?)?;
-                file.write_all(&bcs_ext::to_bytes(&account_state_set)?)?;
+        let states_keys = statedb.dump_keys()?;
+        for hash in states_keys.iter() {
+            if !states_keys_prev.contains(hash) {
+                match storage.get(hash) {
+                    Ok(Some(value)) => {
+                        let node: Node<AccountAddress> = value.try_into()?;
+                        match node {
+                            Node::Leaf(leaf_node) => {
+                                let account_address = leaf_node.raw_key().clone();
+                                let account_state_set = leaf_node.blob().clone();
+                                writeln!(
+                                    file,
+                                    "{} {}",
+                                    serde_json::to_string(&account_address)?,
+                                    serde_json::to_string(&account_state_set)?
+                                )?;
+                            }
+                            _ => {
+                                println!("hash {} not leaf node", hash);
+                                std::process::exit(1);
+                            }
+                        }
+                    }
+                    _ => {
+                        println!("hash {} not in column {}", hash, STATE_NODE_PREFIX_NAME);
+                        std::process::exit(1);
+                    }
+                }
             }
-            bar.set_message(format!("write state {}", i).as_str());
-            bar.inc(1);
         }
         file.flush()?;
-        bar.finish();
+        states_keys_prev.clear();
+        states_keys_prev = states_keys;
     }
 
     // save manifest
@@ -1251,7 +1298,10 @@ pub fn apply_snapshot(
         let reader = BufReader::new(File::open(PathBuf::from(file_name))?);
 
         let verify_hash = HashValue::from_hex_literal(hash)?;
-        println!("file_name {} hash {} verify_hash {}", file_name, hash, verify_hash);
+        println!(
+            "file_name {} hash {} verify_hash {}",
+            file_name, hash, verify_hash
+        );
         if file_name.contains("snapshot_block_info") {
             for line in reader.lines() {
                 let line = line?;

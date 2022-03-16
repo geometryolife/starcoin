@@ -1,6 +1,7 @@
 // Copyright (c) The Starcoin Core Contributors
 // SPDX-License-Identifier: Apache-2
 
+use std::collections::HashSet;
 use crate::RpcClient;
 use anyhow::{format_err, Result};
 use starcoin_crypto::HashValue;
@@ -90,6 +91,10 @@ impl<'a> ChainStateReader for RemoteStateReader<'a> {
         unimplemented!()
     }
     fn dump(&self) -> Result<ChainStateSet> {
+        unimplemented!()
+    }
+
+    fn dump_keys(&self) -> Result<HashSet<HashValue>> {
         unimplemented!()
     }
 }

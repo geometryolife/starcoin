@@ -1,6 +1,7 @@
 // Copyright (c) The Starcoin Core Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::HashSet;
 use anyhow::{format_err, Result};
 use starcoin_config::{NodeConfig, TimeService};
 use starcoin_crypto::HashValue;
@@ -202,6 +203,10 @@ impl ChainStateReader for Inner {
     }
 
     fn dump(&self) -> Result<ChainStateSet> {
+        unimplemented!()
+    }
+
+    fn dump_keys(&self) -> Result<HashSet<HashValue>> {
         unimplemented!()
     }
 }

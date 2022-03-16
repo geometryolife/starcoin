@@ -425,6 +425,10 @@ impl ChainStateReader for ChainStateDB {
         }
         Ok(ChainStateSet::new(account_states))
     }
+
+    fn dump_keys(&self) -> Result<HashSet<HashValue>> {
+        self.state_tree.dump_keys()
+    }
 }
 
 impl ChainStateWriter for ChainStateDB {

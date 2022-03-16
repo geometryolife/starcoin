@@ -31,6 +31,7 @@ use starcoin_vm_types::{
 };
 use std::convert::{TryFrom, TryInto};
 use std::sync::Arc;
+use std::collections::HashSet;
 
 #[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct StateProof {
@@ -133,6 +134,8 @@ pub trait ChainStateReader: StateView {
     fn state_root(&self) -> HashValue;
 
     fn dump(&self) -> Result<ChainStateSet>;
+
+    fn dump_keys(&self) -> Result<HashSet<HashValue>>;
 }
 
 pub trait ChainStateWriter {

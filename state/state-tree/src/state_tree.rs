@@ -10,7 +10,7 @@ use parking_lot::{Mutex, RwLock};
 use starcoin_crypto::hash::*;
 use starcoin_state_store_api::*;
 use starcoin_types::state_set::StateSet;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::convert::TryInto;
 use std::ops::DerefMut;
 use std::sync::Arc;
@@ -196,6 +196,11 @@ where
         for (nk, n) in change_sets.node_batch.into_iter() {
             node_map.insert(nk, n.try_into()?);
         }
+        // XXX ADD THIS CODE
+        // 如果记录state_root 对应更新哪些key value 这种方法不行
+        // 如果每个block有多个交易
+        // 上一个block和下一个block之间每个txn都会flush一个state_root, 中间的state_root丢了
+        // 除非改成批量的flush机制
         self.storage.write_nodes(node_map)?;
         // and then advance the storage root hash
         *self.storage_root_hash.write() = root_hash;
@@ -219,6 +224,25 @@ where
             states.push((item.0.encode_key()?, item.1.into()));
         }
         Ok(StateSet::new(states))
+    }
+
+    // HashValue 32 bytes
+    // 1 million
+    pub fn dump_keys(&self) -> Result<HashSet<HashValue>> {
+        let cur_root_hash = self.root_hash();
+        let mut cache_guard = self.cache.lock();
+        let cache = cache_guard.deref_mut();
+        let reader = CachedTreeReader {
+            store: self.storage.as_ref(),
+            cache,
+        };
+        let iterator = JellyfishMerkleIterator::new(&reader, cur_root_hash, HashValue::zero())?;
+        let mut states_keys = HashSet::new();
+        for item in iterator {
+            let item = item?;
+            states_keys.insert( Node::new_leaf(item.0, item.1.into()).hash());
+        }
+        Ok(states_keys)
     }
 
     /// passing None value with a key means delete the key
