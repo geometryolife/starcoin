@@ -85,9 +85,9 @@ pub fn block_execute(
         };
     }
 
-    chain_state
+    /*chain_state
         .flush()
-        .map_err(BlockExecutorError::BlockChainStateErr)?;
+        .map_err(BlockExecutorError::BlockChainStateErr)?; */
     executed_data.state_root = chain_state.state_root();
     Ok(executed_data)
 }
