@@ -10268,6 +10268,7 @@ dependencies = [
  "parking_lot 0.12.0",
  "serde 1.0.136",
  "starcoin-crypto",
+ "starcoin-logger",
  "starcoin-state-store-api",
  "starcoin-types",
  "starcoin-vm-types",
